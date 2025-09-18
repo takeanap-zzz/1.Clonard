@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import re
 
 # File Excel gốc
-src = Path(r"D:\py\252Church\Aug 04- Aug 10 2025 Weekly Timesheet Input v6.xlsx")
+src = Path(r"D:\1.Clonard\199\Aug 04- Aug 10 2025 Weekly Timesheet Input v6.xlsx")
 
 # Thư mục chứa bản sao
 dst_folder = src.parent
