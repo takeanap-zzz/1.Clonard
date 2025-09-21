@@ -1,3 +1,6 @@
+# chọn file summary, chọn các file nguồn, copy dữ liệu từ các file nguồn vào đúng vị trí trong summary dựa trên ngày tháng
+
+
 import xlwings as xw
 from tkinter import filedialog, Tk
 from pathlib import Path
@@ -9,7 +12,6 @@ summary_path = filedialog.askopenfilename(
     title="Chọn file SUMMARY",
     filetypes=[("Excel Files", "*.xlsx *.xlsm")]
 )
-
 if not summary_path:
     print("❌ Không chọn file summary.")
     exit()
@@ -19,7 +21,6 @@ source_files = filedialog.askopenfilenames(
     title="Chọn các file nguồn",
     filetypes=[("Excel Files", "*.xlsx *.xlsm")]
 )
-
 if not source_files:
     print("❌ Không chọn file nguồn.")
     exit()
@@ -35,13 +36,15 @@ summary_targets = [
 
 # ==== Bắt đầu xử lý ====
 app = xw.App(visible=False)
-error_files = []
+error_files = []  # (tên file, lý do)
 try:
     wb_summary = xw.Book(summary_path)
-    ws_summary = wb_summary.sheets[0]  # sheet đầu tiên
+    ws_summary = wb_summary.sheets[0]
+
+    filled_blocks = {}  # ghi nhớ block đã được dùng
 
     for src in source_files:
-        matched = False  # flag kiểm tra
+        matched = False
         wb_src = xw.Book(src)
         ws_src = wb_src.sheets[0]
 
@@ -53,15 +56,22 @@ try:
             summary_date2 = ws_summary.range(check_cell2).value
 
             if (src_date1 == summary_date1) and (src_date2 == summary_date2):
-                data = ws_src.range("E16:H20").value
-                ws_summary.range(paste_range).value = data
-                print(f"✅ {Path(src).name}: Copy vào {paste_range}")
+                # kiểm tra trùng ngày
+                if paste_range in filled_blocks:
+                    error_files.append((
+                        Path(src).name,
+                        f"trùng ngày với block {paste_range} (đã copy từ {filled_blocks[paste_range]})"
+                    ))
+                else:
+                    data = ws_src.range("E16:H20").value
+                    ws_summary.range(paste_range).value = data
+                    filled_blocks[paste_range] = Path(src).name
+                    print(f"✅ {Path(src).name}: Copy vào {paste_range}")
                 matched = True
-                break  # thoát vòng for vì đã tìm đúng chỗ
+                break
 
         if not matched:
-            error_files.append(Path(src).name)
-            print(f"❌ {Path(src).name}: Ngày không khớp với bất kỳ block nào")
+            error_files.append((Path(src).name, "không khớp ngày nào trong summary"))
 
         wb_src.close()
 
@@ -69,10 +79,11 @@ try:
     print("🎉 Hoàn thành cập nhật Summary.xlsx")
 
     if error_files:
-        print("\n⚠️ Các file bị lỗi ngày:")
-        for f in error_files:
-            print(f"   - {f}")
+        print("\n❌ Các file lỗi:")
+        for f, reason in error_files:
+            print(f"   - {f}: {reason}")
 
 finally:
     wb_summary.close()
     app.quit()
+
