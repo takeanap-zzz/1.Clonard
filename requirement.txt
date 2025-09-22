@@ -1,2 +1,3 @@
 xlwings
 pandas
+PyPDF2
