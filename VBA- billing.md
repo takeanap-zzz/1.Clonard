@@ -1,5 +1,7 @@
 **insert and color ( alt + f8 then code then f5)**
 
+Hiiiiiiiii, banhbao
+
 Sub InsertGrayRowsWhenDateChanges()
     Dim ws As Worksheet
     Dim lastRow As Long
