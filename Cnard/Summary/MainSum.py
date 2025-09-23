@@ -1,20 +1,24 @@
 import pandas as pd
-from openpyxl import Workbook
+import openpyxl
+from openpyxl import load_workbook
 
-# Đọc file 1 (giả sử tên file: input.xlsx, sheet1)
-df = pd.read_excel("489-539 King Street West Billing Outline 01Sep to 28Sep2025_v.xxSep2025.xlsx", skiprows=3)  # bỏ qua 3 dòng đầu => bắt đầu row 4
+# ==== Đọc file nguồn ====
+df = pd.read_excel(
+    r"D:\1.python\1.Clonard-1\Cnard\Summary\489-539 King Street West Billing Outline 01Sep to 28Sep2025_v.xxSep2025.xlsx",
+    skiprows=3
+)
 
-# Chỉ lấy các cột cần thiết
+# Chỉ lấy cột cần thiết
 df = df[["Date", "Trade", "Reg (Hrs)", "Rate ($) Trade"]]
 
-# Gom nhóm theo ngày + trade
+# Gom nhóm theo Date + Trade
 grouped = df.groupby(["Date", "Trade"]).agg(
     count_trade=("Trade", "count"),
     hrs=("Reg (Hrs)", "sum"),
-    rate=("Rate ($) Trade", "first")  # giả sử cùng 1 rate cho trade
+    rate=("Rate ($) Trade", "first")
 ).reset_index()
 
-# Tạo bảng output như file 2
+# Chuẩn bị dữ liệu output
 output = []
 for _, row in grouped.iterrows():
     trade_label = f"{row['Trade']}: {row['count_trade']}"
@@ -27,24 +31,29 @@ for _, row in grouped.iterrows():
         row["Date"], trade_label, description, ref, hrs, reg, 0, 0, amount
     ])
 
-out_df = pd.DataFrame(output, columns=["DATE", "TRADE", "DESCRIPTION", "REF", 
-                                       "HRS", "REG", "1.5X", "2X", "AMOUNT"])
+# ==== Mở file summary có sẵn ====
+summary_path = r"D:\1.python\1.Clonard-1\Cnard\Summary\CGI Summary2508xxxx_489-539 King Street West_xxAug2025.xlsx"   # 👉 đổi lại tên file summary thực tế
+wb = load_workbook(summary_path)
+ws = wb.active   # sheet đầu tiên (có header từ row 9)
 
-# Xuất ra file Excel (bắt đầu từ row 9)
-wb = Workbook()
-ws = wb.active
+start_row = 11  # dòng bắt đầu điền dữ liệu
 
-# Chèn 8 dòng trống trước
-for _ in range(8):
-    ws.append([])
+# Điền dữ liệu vào file summary
+for i, row in enumerate(output, start=start_row):
+    date_value = row[0]
+    ws.cell(row=i, column=1, value=date_value)   # cột A: Date
+    ws.cell(row=i+1, column=1, value=f'=TEXT(A{i},"(ddd)")')  # dòng ngay dưới: công thức TEXT
+    
+    ws.cell(row=i, column=2, value=row[1])  # cột B: Trade
+    ws.cell(row=i, column=3, value=row[2])  # cột C: Description
+    ws.cell(row=i, column=4, value=row[3])  # cột D: Ref
+    ws.cell(row=i, column=5, value=row[4])  # cột E: Hrs
+    ws.cell(row=i, column=6, value=row[5])  # cột F: Reg
+    ws.cell(row=i, column=7, value=row[6])  # cột G: 1.5X
+    ws.cell(row=i, column=8, value=row[7])  # cột H: 2X
+    ws.cell(row=i, column=9, value=row[8])  # cột I: Amount
 
-# Thêm header
-ws.append(list(out_df.columns))
+# Lưu lại file summary
+wb.save(summary_path)
 
-# Thêm dữ liệu
-for row in out_df.itertuples(index=False):
-    ws.append(row)
-
-wb.save("file2.xlsx")
-
-print("✅ Đã tạo file2.xlsx theo format yêu cầu")
+print("✅ Đã điền dữ liệu vào file summary thành công!")
