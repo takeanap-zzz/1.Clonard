@@ -1,59 +1,90 @@
+
 import pandas as pd
-import openpyxl
 from openpyxl import load_workbook
+from openpyxl.styles import Alignment
 
-# ==== Đọc file nguồn ====
-df = pd.read_excel(
-    r"D:\1.python\1.Clonard-1\Cnard\Summary\489-539 King Street West Billing Outline 01Sep to 28Sep2025_v.xxSep2025.xlsx",
-    skiprows=3
-)
+# ==== BƯỚC 1: Đọc file nguồn ====
+file_input = r"D:\1.python\1.Clonard-1\Cnard\Summary\489-539.xlsx"
+file_summary = r"D:\1.python\1.Clonard-1\Cnard\Summary\CGI Summary.xlsx"
 
-# Chỉ lấy cột cần thiết
-df = df[["Date", "Trade", "Reg (Hrs)", "Rate ($) Trade"]]
+# Row 4 là header → bỏ qua 3 dòng đầu
+df = pd.read_excel(file_input, skiprows=3)
 
-# Gom nhóm theo Date + Trade
-grouped = df.groupby(["Date", "Trade"]).agg(
-    count_trade=("Trade", "count"),
-    hrs=("Reg (Hrs)", "sum"),
-    rate=("Rate ($) Trade", "first")
-).reset_index()
+# Chuẩn hóa tên cột
+df.columns = df.columns.str.strip()
+df.columns = df.columns.str.replace(r"\s+", " ", regex=True)
 
-# Chuẩn bị dữ liệu output
-output = []
-for _, row in grouped.iterrows():
-    trade_label = f"{row['Trade']}: {row['count_trade']}"
-    description = "General & Safety"
-    ref = "Various"
-    hrs = row["hrs"]
-    reg = row["rate"]
-    amount = hrs * reg
-    output.append([
-        row["Date"], trade_label, description, ref, hrs, reg, 0, 0, amount
-    ])
+print("✅ Danh sách cột:", df.columns.tolist())
 
-# ==== Mở file summary có sẵn ====
-summary_path = r"D:\1.python\1.Clonard-1\Cnard\Summary\CGI Summary2508xxxx_489-539 King Street West_xxAug2025.xlsx"   # 👉 đổi lại tên file summary thực tế
-wb = load_workbook(summary_path)
-ws = wb.active   # sheet đầu tiên (có header từ row 9)
+# ==== BƯỚC 2: Gom nhóm ====
+rows = []
 
-start_row = 11  # dòng bắt đầu điền dữ liệu
+# Gom theo Date + Trade
+grouped = df.groupby(["Date", "Trade"])
 
-# Điền dữ liệu vào file summary
-for i, row in enumerate(output, start=start_row):
-    date_value = row[0]
-    ws.cell(row=i, column=1, value=date_value)   # cột A: Date
-    ws.cell(row=i+1, column=1, value=f'=TEXT(A{i},"(ddd)")')  # dòng ngay dưới: công thức TEXT
-    
-    ws.cell(row=i, column=2, value=row[1])  # cột B: Trade
-    ws.cell(row=i, column=3, value=row[2])  # cột C: Description
-    ws.cell(row=i, column=4, value=row[3])  # cột D: Ref
-    ws.cell(row=i, column=5, value=row[4])  # cột E: Hrs
-    ws.cell(row=i, column=6, value=row[5])  # cột F: Reg
-    ws.cell(row=i, column=7, value=row[6])  # cột G: 1.5X
-    ws.cell(row=i, column=8, value=row[7])  # cột H: 2X
-    ws.cell(row=i, column=9, value=row[8])  # cột I: Amount
+for (date, trade), g in grouped:
+    # Regular
+    reg_sum = g["Reg (Hrs)"].fillna(0).sum()
+    if reg_sum > 0:
+        rows.append({
+            "Date": date,
+            "Trade": f"{trade}: {len(g)}",
+            "Hrs": reg_sum
+        })
 
-# Lưu lại file summary
-wb.save(summary_path)
+    # Overtime 1.5X
+    ot15_sum = g["O / T 1.5X"].fillna(0).sum()
+    if ot15_sum > 0:
+        rows.append({
+            "Date": date,
+            "Trade": f"{trade}: {len(g)} (OT1.5)",
+            "Hrs": ot15_sum
+        })
 
-print("✅ Đã điền dữ liệu vào file summary thành công!")
+    # Overtime 2X
+    ot2_sum = g["O/T 2X"].fillna(0).sum()
+    if ot2_sum > 0:
+        rows.append({
+            "Date": date,
+            "Trade": f"{trade}: {len(g)} (OT2)",
+            "Hrs": ot2_sum
+        })
+
+result = pd.DataFrame(rows)
+print("✅ Kết quả chuyển đổi:\n", result.head())
+
+# ==== BƯỚC 3: Ghi vào file Summary có sẵn ====
+wb = load_workbook(file_summary)
+ws = wb.active  # hoặc ws = wb["Sheet1"]
+
+start_row = 11  # bắt đầu ghi từ row 11
+col_date = 1    # cột A
+col_trade = 2   # cột B
+col_hrs = 5     # cột E
+
+current_row = start_row
+for date, group in result.groupby("Date"):
+    first_row = current_row
+    for _, r in group.iterrows():
+        # Ghi Date chỉ 1 lần (ở dòng đầu tiên)
+        if current_row == first_row:
+            ws.cell(row=current_row, column=col_date, value=date)
+            # Ngay dưới Date có dòng thứ (ddd)
+            ws.cell(row=current_row+1, column=col_date, value=f"({date.strftime('%a')})")
+            ws.cell(row=current_row+1, column=col_date).alignment = Alignment(horizontal="center")
+
+        ws.cell(row=current_row, column=col_trade, value=r["Trade"])
+        ws.cell(row=current_row, column=col_hrs, value=r["Hrs"])
+        current_row += 1
+
+    # Nếu có nhiều dòng cho cùng 1 Date → merge Date
+    if current_row - first_row > 1:
+        ws.merge_cells(start_row=first_row, start_column=col_date,
+                       end_row=current_row-1, end_column=col_date)
+
+wb.save(file_summary)
+print("🎉 Đã ghi dữ liệu vào Summary.xlsx thành công!")
+
+
+
+
