@@ -1,6 +1,4 @@
 # ktra ngay co match hay khong
-
-
 import pandas as pd
 import tkinter as tk
 from tkinter import filedialog
@@ -58,12 +56,12 @@ def process_files(source_file, target_files):
     }
     
     for file_path in target_files:
-        print(f"\n[➡] Đang xử lý file: {file_path}")
+        
         
         # Lấy ngày từ tên file
         start_date, end_date = extract_dates_from_filename(file_path)
         if not start_date or not end_date:
-            print(f"[!] Bỏ qua {file_path}: Không thể lấy ngày từ tên file.")
+            print(f"❌ Bỏ qua {file_path}: Không thể lấy ngày từ tên file.")
             continue
         print(f"[i] Tuần: {start_date} đến {end_date}")
         
